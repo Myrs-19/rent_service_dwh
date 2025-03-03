@@ -1,0 +1,2 @@
+class EndPagesCianException(Exception):
+    pass
