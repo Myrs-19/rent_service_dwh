@@ -30,4 +30,4 @@
 
 
 ## верхнеуровневая архитектура
-<a>![Image alt](https://github.com/Myrs-19/rent_service_dwh/blob/master/документация/верхнеуровневая%sархитектура.png)</a>
+<a>![Image alt](https://github.com/Myrs-19/rent_service_dwh/blob/master/документация/верхнеуровневая sархитектура.png)</a>
