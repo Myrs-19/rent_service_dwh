@@ -1,0 +1,32 @@
+@startuml
+
+actor User
+
+node "Источники данных" {
+    node "Веб-приложения" as Sources
+}
+
+node "Airflow" {
+    node "Парсинг данных" as Airflow_Parsing
+    node "Переливка данных" as Airflow_Transform
+}
+
+node "База данных" {
+    database "Хранилище данных" as DataWarehouse
+    database "Витрины данных" as DataMarts
+}
+
+node "Мое приложение" {
+    node "API" as AppAPI
+    node "UI" as AppUI
+}
+
+Sources --> Airflow_Parsing : Собирает данные
+Airflow_Parsing --> DataWarehouse : Загружает сырые данные
+DataWarehouse --> Airflow_Transform : Обрабатывает и формирует витрины
+Airflow_Transform --> DataMarts : Сохраняет агрегированные данные
+DataMarts --> AppAPI : API запрашивает данные для отображения
+AppAPI --> AppUI : Передает данные в интерфейс
+User --> AppUI : Просматривает графики и историю цен
+
+@enduml
