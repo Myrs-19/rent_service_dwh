@@ -34,4 +34,4 @@
  
 
  ## ссылка на вики
-[WIKI](localhost:3000)
+[WIKI](http://localhost:3000)
