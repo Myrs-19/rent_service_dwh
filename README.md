@@ -31,3 +31,7 @@
 
 ## верхнеуровневая архитектура
 ![Image alt](https://github.com/Myrs-19/rent_service_dwh/blob/master/docs/top_level_architecture.png)
+ 
+
+ ## ссылка на вики
+<a>localhost:3000</a>
