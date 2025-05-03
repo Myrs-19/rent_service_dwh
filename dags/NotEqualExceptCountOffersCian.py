@@ -1,0 +1,2 @@
+class NotEqualExceptCountOffersCian(Exception):
+    pass

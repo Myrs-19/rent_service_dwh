@@ -35,3 +35,10 @@
 
  ## ссылка на вики для команды
 [WIKI](http://localhost:3000)
+admin
+mseleznevdev@gmail.com
+Pilimilom!1
+
+
+## путь до виртульного окружения, через которое запускается airflow
+/home/mseleznev/programming/pet_study/airflow_dbt
