@@ -112,8 +112,8 @@ def load_postgresql(**kwargs):
     print(kwargs)
 
     excel_file = pd.read_excel(f"/run/media/mseleznev/data/rent_serv_data/cian_rostov_{kwargs['ts']}.xlsx")
-    
-    engine = create_engine('postgresql+psycopg2://mseleznev:garo6767@localhost:5432/test')
+
+    engine = create_engine('postgresql+psycopg2://srv.etl.dwh:dwh-Jbn$123#!17@localhost:5432/dwh')
     
     excel_file.columns = [
         'id_offer',
@@ -145,8 +145,8 @@ def load_postgresql(**kwargs):
 
     # Запись в PostgreSQL
     excel_file.to_sql(
-        schema='for_test',
-        name='read_csv',      # Название таблицы
+        schema='ods',
+        name='c_rostov',      # Название таблицы
         con=engine,                # Подключение
         if_exists='append',        # 'append', 'replace' или 'fail'
         index=False,               # Не записывать индекс
@@ -172,16 +172,17 @@ with DAG(
         task_id = "end"
     )
 
+    '''
     # скачивать можно не больше 3 раз за день
     parse_and_load = PythonOperator(
         task_id = "parse_and_load",
         python_callable = load
     )
+    '''
 
     move_file_to_ods = BashOperator(
         task_id = "move_file_to_ods",
         #bash_command = "mv /home/mseleznev/Загрузки/offers.xlsx /run/media/mseleznev/data/rent_serv_data/cian_rostov_{{ data_interval_start.strftime('%Y%m%d%H%M%S%f') }}.xlsx",
-        # bash_command = "cp /home/mseleznev/Загрузки/offers.xlsx /run/media/mseleznev/data/rent_serv_data/cian_rostov_{{ data_interval_start.strftime('%Y%m%d%H%M%S%f') }}.xlsx",
         bash_command = "cp /home/mseleznev/Загрузки/offers.xlsx /run/media/mseleznev/data/rent_serv_data/cian_rostov_{{ ts }}.xlsx",
     )
 
@@ -199,5 +200,5 @@ with DAG(
 
     # start >> parse_and_load >> move_file_to_ods >> end
     # start >> move_file_to_ods >> end
-    start >> parse_and_load >> move_file_to_ods >> load_to_postgresql >> end
-    # start >> move_file_to_ods >> load_to_postgresql >> end
+    # start >> parse_and_load >> move_file_to_ods >> load_to_postgresql >> end
+    start >> move_file_to_ods >> load_to_postgresql >> end
