@@ -107,6 +107,7 @@ def load(**kwargs):
 def load_postgresql(**kwargs):
     from sqlalchemy import create_engine
     import pandas as pd
+    import datetime
 
     print(kwargs)
 
@@ -138,6 +139,9 @@ def load_postgresql(**kwargs):
         'garbage_chute',
         'link_to_offer'
         ]
+    
+    excel_file['dataflow_id'] = kwargs['run_id']
+    excel_file['dataflow_dttm'] = datetime.datetime.now()
 
     # Запись в PostgreSQL
     excel_file.to_sql(
@@ -168,6 +172,7 @@ with DAG(
         task_id = "end"
     )
 
+    # скачивать можно не больше 3 раз за день
     parse_and_load = PythonOperator(
         task_id = "parse_and_load",
         python_callable = load
@@ -195,3 +200,4 @@ with DAG(
     # start >> parse_and_load >> move_file_to_ods >> end
     # start >> move_file_to_ods >> end
     start >> parse_and_load >> move_file_to_ods >> load_to_postgresql >> end
+    # start >> move_file_to_ods >> load_to_postgresql >> end
