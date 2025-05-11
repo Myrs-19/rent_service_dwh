@@ -159,7 +159,7 @@ args = {
 with DAG(
     dag_id = DAG_ID,
     start_date = datetime.datetime(year=2025, month=3, day=19),
-    schedule = "0 5,23 * * *", # каждый день в 5 утра и 23 вечера по utc
+    schedule = None,
     catchup = False,
     max_active_runs=1,
     default_args = args
@@ -172,18 +172,15 @@ with DAG(
         task_id = "end"
     )
 
-    '''
     # скачивать можно не больше 3 раз за день
     parse_and_load = PythonOperator(
         task_id = "parse_and_load",
         python_callable = load
     )
-    '''
 
     move_file_to_ods = BashOperator(
         task_id = "move_file_to_ods",
-        #bash_command = "mv /home/mseleznev/Загрузки/offers.xlsx /run/media/mseleznev/data/rent_serv_data/cian_rostov_{{ data_interval_start.strftime('%Y%m%d%H%M%S%f') }}.xlsx",
-        bash_command = "cp /home/mseleznev/Загрузки/offers.xlsx /run/media/mseleznev/data/rent_serv_data/cian_rostov_{{ ts }}.xlsx",
+        bash_command = "mv /home/mseleznev/Загрузки/offers.xlsx /run/media/mseleznev/data/rent_serv_data/cian_rostov_{{ ts }}.xlsx"
     )
 
     load_to_postgresql = PythonVirtualenvOperator(
@@ -198,7 +195,5 @@ with DAG(
         system_site_packages=False
     )
 
-    # start >> parse_and_load >> move_file_to_ods >> end
-    # start >> move_file_to_ods >> end
-    # start >> parse_and_load >> move_file_to_ods >> load_to_postgresql >> end
-    start >> move_file_to_ods >> load_to_postgresql >> end
+    start >> parse_and_load >> move_file_to_ods >> load_to_postgresql >> end
+    #start >> move_file_to_ods >> load_to_postgresql >> end
