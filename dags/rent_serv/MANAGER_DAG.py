@@ -69,6 +69,12 @@ with DAG(
         trigger_dag_id = "H_APPARTMENT_OFFER_LOAD",
         wait_for_completion = True
     )
+    
+    triger_S_APPARTMENT_OFFER_001_ROSTOV_LOAD = TriggerDagRunOperator(
+        task_id = "triger_S_APPARTMENT_OFFER_001_ROSTOV_LOAD",
+        trigger_dag_id = "S_APPARTMENT_OFFER_001_ROSTOV_LOAD",
+        wait_for_completion = True
+    )
 
     start >> ods_start
 
@@ -78,7 +84,9 @@ with DAG(
     ods_end >> rv_start
 
     rv_start >> triger_H_APPARTMENT_OFFER_LOAD
-
+    rv_start >> triger_S_APPARTMENT_OFFER_001_ROSTOV_LOAD
+    
     triger_H_APPARTMENT_OFFER_LOAD >> rv_end
-
+    triger_S_APPARTMENT_OFFER_001_ROSTOV_LOAD >> rv_end
+    
     rv_end >> end
