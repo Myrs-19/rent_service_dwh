@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Тест геокодирования адресов</h4>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="address" class="form-label">Введите адрес:</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="address" 
+                                   placeholder="Например: Ростов-на-Дону, Большая Садовая 10">
+                            <button class="btn btn-primary" onclick="findCoordinates()">Найти</button>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <div class="row">
+                            <div class="col-md-12">
+                                <label class="form-label">Координаты:</label>
+                                <input type="text" id="coordinates" class="form-control font-monospace" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="map" style="width: 100%; height: 400px; margin-top: 20px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Подключение API Яндекс.Карт -->
+<script src="https://api-maps.yandex.ru/2.1/?apikey=b8c62031-1efc-40b9-bf35-8ee2869c1112&lang=ru_RU" type="text/javascript"></script>
+
+<!-- Подключение API Яндекс.Карт -->
+<script src="https://api-maps.yandex.ru/2.1/?apikey=b8c62031-1efc-40b9-bf35-8ee2869c1112&lang=ru_RU" type="text/javascript"></script>
+
+<script>
+let myMap;
+
+// Инициализация карты
+ymaps.ready(init);
+
+function init() {
+    myMap = new ymaps.Map('map', {
+        center: [55.76, 37.64],  // Москва по умолчанию
+        zoom: 10
+    });
+}
+
+function findCoordinates() {
+    const address = document.getElementById('address').value.trim();
+    const coordsInput = document.getElementById('coordinates');
+    
+    if (!address) {
+        alert('Пожалуйста, введите адрес');
+        return;
+    }
+    
+    // Геокодирование адреса
+    ymaps.geocode(address, { results: 1 }).then(function (res) {
+        const firstGeoObject = res.geoObjects.get(0);
+        
+        if (firstGeoObject) {
+            const coords = firstGeoObject.geometry.getCoordinates();
+            const coordsStr = coords.map(c => c.toFixed(6)).join(', ');
+            
+            // Обновляем поле с координатами
+            coordsInput.value = coordsStr;
+            
+            // Обновляем карту
+            myMap.setCenter(coords, 17);  // Увеличиваем масштаб
+            myMap.geoObjects.removeAll();
+            
+            // Добавляем метку с балуном
+            const placemark = new ymaps.Placemark(coords, {
+                hintContent: address,
+                balloonContent: `Адрес: ${address}<br>Координаты: ${coordsStr}`
+            });
+            
+            myMap.geoObjects.add(placemark);
+            
+            // Сохраняем координаты в базу данных
+            saveCoordinates(address, coords[0], coords[1]);
+        } else {
+            alert('Адрес не найден');
+        }
+    }).catch(error => {
+        console.error('Ошибка геокодирования:', error);
+        alert('Произошла ошибка при поиске координат');
+    });
+}
+
+function saveCoordinates(address, lat, lon) {
+    // Замените '/api/save-coordinates/' на ваш реальный эндпоинт
+    fetch('/api/save-coordinates/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            address: address,
+            latitude: lat,
+            longitude: lon
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Координаты успешно сохранены:', data);
+    })
+    .catch(error => {
+        console.error('Ошибка при сохранении координат:', error);
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

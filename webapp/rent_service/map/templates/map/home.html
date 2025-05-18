@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Map Container -->
+        <div class="col-lg-9 p-0">
+            <div id="map" style="height: calc(100vh - 56px);"></div>
+        </div>
+
+        <!-- Filters Sidebar -->
+        <div class="col-lg-3 bg-light p-4">
+            <h4 class="mb-4">Фильтры</h4>
+            <form id="filterForm">
+                <!-- Region Filter -->
+                <div class="mb-3">
+                    <label for="region" class="form-label">Регион</label>
+                    <select class="form-select" id="region" name="region">
+                        <option value="">Все регионы</option>
+                        {% for region in regions %}
+                            <option value="{{ region }}">{{ region }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Price Range Filter -->
+                <div class="mb-3">
+                    <label class="form-label">Диапазон цен (₽)</label>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <input type="number" class="form-control" id="minPrice" name="minPrice" placeholder="От">
+                        </div>
+                        <div class="col-6">
+                            <input type="number" class="form-control" id="maxPrice" name="maxPrice" placeholder="До">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rooms Filter -->
+                <div class="mb-3">
+                    <label class="form-label">Количество комнат</label>
+                    <div class="btn-group d-flex flex-wrap" role="group">
+                        {% for i in "123456"|make_list %}
+                        <input type="checkbox" class="btn-check" name="rooms" id="room{{ i }}" value="{{ i }}">
+                        <label class="btn btn-outline-primary" for="room{{ i }}">{{ i }}</label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Apply Filters Button -->
+                <button type="submit" class="btn btn-primary w-100 mt-3">Применить фильтры</button>
+            </form>
+
+            <!-- Results Summary -->
+            <div class="mt-4">
+                <h5>Результаты</h5>
+                <p id="resultsCount">0 объектов найдено</p>
+                <div id="averagePrice" class="text-muted">Средняя цена: ₽0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Leaflet CSS and JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
+<!-- Leaflet MarkerCluster -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+<!-- Custom CSS -->
+<style>
+    .btn-check:checked + .btn-outline-primary {
+        background-color: #0d6efd;
+        color: white;
+    }
+    #map {
+        z-index: 1;
+    }
+    .form-label {
+        font-weight: 500;
+    }
+    .property-popup {
+        max-width: 300px;
+    }
+    .property-popup img {
+        max-width: 100%;
+        height: auto;
+    }
+    #region {
+        font-size: 14px;
+    }
+    .form-select {
+        background-color: white;
+    }
+    .region-highlight {
+        animation: fadeOut 2s forwards;
+    }
+    @keyframes fadeOut {
+        0% { opacity: 0.6; }
+        100% { opacity: 0; }
+    }
+    .marker-price {
+        background: #2196F3;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 12px;
+        white-space: nowrap;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .marker-cluster {
+        background-color: rgba(33, 150, 243, 0.6);
+    }
+    .marker-cluster div {
+        background-color: rgba(33, 150, 243, 0.8);
+        color: white;
+        font-weight: bold;
+    }
+</style>
+
+<!-- Custom JavaScript -->
+<script>
+    // Region coordinates map
+    const REGION_COORDINATES = {{ region_coordinates|safe }};
+    
+    // Initialize the map centered on Russia
+    const map = L.map('map').setView([55.7558, 37.6173], 4);
+    
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Initialize marker cluster group
+    let markerClusterGroup = L.markerClusterGroup({
+        maxClusterRadius: 30,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        spiderfyDistanceMultiplier: 1.5,  // Increase spacing between spiderfied markers
+        disableClusteringAtZoom: 19  // Disable clustering at maximum zoom
+    });
+    map.addLayer(markerClusterGroup);
+
+    // Load initial properties when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Page loaded, fetching initial properties...');
+        fetchProperties({});  // Empty filters to get all properties
+    });
+
+    // Variable to store current region highlight
+    let currentRegionHighlight = null;
+
+    // Function to highlight region
+    function highlightRegion(region) {
+        // Remove previous highlight if exists
+        if (currentRegionHighlight) {
+            map.removeLayer(currentRegionHighlight);
+        }
+
+        if (region && REGION_COORDINATES[region]) {
+            const coords = REGION_COORDINATES[region];
+            // Create a circle with animation
+            currentRegionHighlight = L.circle([coords.lat, coords.lon], {
+                color: '#0d6efd',
+                fillColor: '#0d6efd',
+                fillOpacity: 0.6,
+                radius: 50000, // 50km radius
+                className: 'region-highlight'
+            }).addTo(map);
+
+            // Center map on region with appropriate zoom
+            map.setView([coords.lat, coords.lon], coords.zoom);
+        }
+    }
+
+    // Handle region selection
+    document.getElementById('region').addEventListener('change', function(e) {
+        const selectedRegion = e.target.value;
+        if (selectedRegion) {
+            highlightRegion(selectedRegion);
+        } else {
+            // If no region selected, show all Russia
+            if (currentRegionHighlight) {
+                map.removeLayer(currentRegionHighlight);
+            }
+            map.setView([55.7558, 37.6173], 4);
+        }
+    });
+
+    // Handle form submission
+    document.getElementById('filterForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        
+        // Get selected rooms
+        const selectedRooms = [];
+        formData.getAll('rooms').forEach(room => {
+            selectedRooms.push(parseInt(room));
+        });
+
+        // Prepare filter data
+        const filters = {
+            region: formData.get('region'),
+            minPrice: formData.get('minPrice'),
+            maxPrice: formData.get('maxPrice'),
+            rooms: selectedRooms
+        };
+
+        // Send filters to backend
+        fetchProperties(filters);
+    });
+
+    // Function to fetch properties based on filters
+    function fetchProperties(filters) {
+        console.log('Sending filters to server:', filters);
+        fetch('/map/properties/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(filters)
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Received data from server:', data);
+            console.log('Properties:', data.properties);
+            updateMap(data.properties);
+            updateResults(data.summary);
+            
+            // Highlight region if selected and not initial load
+            if (data.region_info && filters.region) {
+                highlightRegion(filters.region);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching properties:', error);
+        });
+    }
+
+    // Function to get CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Function to format price
+    function formatPrice(price) {
+        return new Intl.NumberFormat('ru-RU', {
+            style: 'currency',
+            currency: 'RUB',
+            maximumFractionDigits: 0
+        }).format(price);
+    }
+
+    // Function to update map markers
+    function updateMap(properties) {
+        // Clear existing markers
+        markerClusterGroup.clearLayers();
+
+        // Add new markers
+        properties.forEach(property => {
+            // Форматируем цену в тысячах
+            const priceInThousands = Math.round(property.price / 1000);
+            const priceLabel = property.rooms ? 
+                `${property.rooms}к ${priceInThousands} тыс` : 
+                `${priceInThousands} тыс`;
+            
+            const customIcon = L.divIcon({
+                className: 'custom-price-marker',
+                html: `<div class="marker-price">${priceLabel}</div>`,
+                iconSize: [80, 30],
+                iconAnchor: [40, 15]
+            });
+
+            const marker = L.marker([property.latitude, property.longitude], {
+                icon: customIcon,
+                title: property.title  // Add hover tooltip
+            }).bindPopup(`
+                <div class="property-popup">
+                    <h5>${property.title}</h5>
+                    <p><strong>Цена:</strong> ${formatPrice(property.price)}</p>
+                    <p><strong>Комнат:</strong> ${property.rooms}</p>
+                    <p><strong>Площадь:</strong> ${property.square} м²</p>
+                    <p><strong>Адрес:</strong> ${property.region}</p>
+                    <p class="mb-2">${property.description || ''}</p>
+                </div>
+            `, {
+                maxWidth: 300,
+                autoPan: true
+            });
+            
+            markerClusterGroup.addLayer(marker);
+        });
+
+        // Adjust map bounds if there are markers
+        if (properties.length > 0) {
+            const bounds = markerClusterGroup.getBounds();
+            map.fitBounds(bounds.pad(0.1));
+        }
+    }
+
+    // Function to update results summary
+    function updateResults(summary) {
+        document.getElementById('resultsCount').textContent = `${summary.count} объектов найдено`;
+        document.getElementById('averagePrice').textContent = `Средняя цена: ${formatPrice(summary.averagePrice)}`;
+    }
+</script>
+{% endblock %} 
