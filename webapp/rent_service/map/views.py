@@ -108,9 +108,10 @@ RUSSIAN_REGIONS = list(REGION_COORDINATES.keys())
 @login_required
 def index(request):
     """Render the home page with map and filters"""
+    import json
     return render(request, 'map/home.html', {
         'regions': RUSSIAN_REGIONS,
-        'region_coordinates': REGION_COORDINATES
+        'region_coordinates': json.dumps(REGION_COORDINATES, ensure_ascii=False)
     })
 
 
@@ -274,7 +275,8 @@ def get_properties(request):
                         'rooms': prop.amount_rooms,
                         'region': prop.address,
                         'square': prop.square,
-                        'description': prop.description
+                        'description': prop.description,
+                        'link_to_offer': prop.link_to_offer
                     })
                 else:
                     print(f"Skipping property {prop.id_offer} - no coordinates available")

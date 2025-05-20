@@ -8,8 +8,8 @@
             <div id="map" style="height: calc(100vh - 56px);"></div>
         </div>
 
-        <!-- Filters Sidebar -->
-        <div class="col-lg-3 bg-light p-4">
+        <!-- Filters Sidebar for desktop, hidden on mobile -->
+        <div class="col-lg-3 bg-light p-4 d-none d-lg-block">
             <h4 class="mb-4">Фильтры</h4>
             <form id="filterForm">
                 <!-- Region Filter -->
@@ -58,8 +58,62 @@
                 <div id="averagePrice" class="text-muted">Средняя цена: ₽0</div>
             </div>
         </div>
+
+        <!-- Mobile Filters Button -->
+        <button class="btn btn-primary btn-sm d-lg-none position-fixed" style="top: 75px; right: 10px; z-index: 1051; width: 110px; padding: 4px 0; font-size: 15px;" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileFilters" aria-controls="mobileFilters">
+            Фильтры
+        </button>
+        <!-- Offcanvas Filters for mobile -->
+        <div class="offcanvas offcanvas-start d-lg-none" tabindex="-1" id="mobileFilters" aria-labelledby="mobileFiltersLabel">
+            <div class="offcanvas-header">
+                <h5 class="offcanvas-title" id="mobileFiltersLabel">Фильтры</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body">
+                <form id="filterFormMobile">
+                    <div class="mb-3">
+                        <label for="regionMobile" class="form-label">Регион</label>
+                        <select class="form-select" id="regionMobile" name="region">
+                            <option value="">Все регионы</option>
+                            {% for region in regions %}
+                                <option value="{{ region }}">{{ region }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Диапазон цен (₽)</label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <input type="number" class="form-control" id="minPriceMobile" name="minPrice" placeholder="От">
+                            </div>
+                            <div class="col-6">
+                                <input type="number" class="form-control" id="maxPriceMobile" name="maxPrice" placeholder="До">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Количество комнат</label>
+                        <div class="btn-group d-flex flex-wrap" role="group">
+                            {% for i in "123456"|make_list %}
+                            <input type="checkbox" class="btn-check" name="rooms" id="roomMobile{{ i }}" value="{{ i }}">
+                            <label class="btn btn-outline-primary" for="roomMobile{{ i }}">{{ i }}</label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 mt-3">Применить фильтры</button>
+                </form>
+                <div class="mt-4">
+                    <h5>Результаты</h5>
+                    <p id="resultsCountMobile">0 объектов найдено</p>
+                    <div id="averagePriceMobile" class="text-muted">Средняя цена: ₽0</div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Передача region_coordinates как JSON -->
+<script id="region-coords-json" type="application/json">{{ region_coordinates|safe }}</script>
 
 <!-- Leaflet CSS and JS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
@@ -78,12 +132,20 @@
     }
     #map {
         z-index: 1;
+        width: 100%;
+        height: calc(100vh - 56px);
+        min-height: 400px;
     }
     .form-label {
         font-weight: 500;
     }
     .property-popup {
-        max-width: 300px;
+        max-width: 600px;
+        min-width: 320px;
+        box-sizing: border-box;
+        max-height: 600px;
+        overflow-y: auto;
+        /* width/min-width/max-width для мобильных только в media query ниже */
     }
     .property-popup img {
         max-width: 100%;
@@ -120,12 +182,51 @@
         color: white;
         font-weight: bold;
     }
+    @media (max-width: 991.98px) {
+        .property-popup {
+            width: 70vw;
+            min-width: unset;
+            max-width: 80vw;
+            max-height: 45vh;
+            padding: 6px;
+            margin-top: 80px !important;
+            margin-bottom: 20px;
+        }
+        .property-popup .row {
+            flex-direction: column !important;
+        }
+        .property-popup .col-4 {
+            border-right: none !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            margin-bottom: 18px;
+            width: 100%;
+        }
+    }
+    .leaflet-popup-tip {
+        width: 18px !important;
+        height: 18px !important;
+        transform: none !important;
+        border-radius: 0 !important;
+    }
+    .leaflet-popup-close-button {
+        font-size: 2.2rem !important;
+        line-height: 2.2rem !important;
+        width: 2.5rem !important;
+        height: 2.5rem !important;
+        padding: 0 0.3rem !important;
+    }
+    .property-popup .col-4 {
+        flex-basis: 0;
+        flex-grow: 1;
+        min-width: 0;
+    }
 </style>
 
 <!-- Custom JavaScript -->
 <script>
     // Region coordinates map
-    const REGION_COORDINATES = {{ region_coordinates|safe }};
+    const REGION_COORDINATES = JSON.parse(document.getElementById('region-coords-json').textContent);
     
     // Initialize the map centered on Russia
     const map = L.map('map').setView([55.7558, 37.6173], 4);
@@ -142,8 +243,7 @@
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
         zoomToBoundsOnClick: true,
-        spiderfyDistanceMultiplier: 1.5,  // Increase spacing between spiderfied markers
-        disableClusteringAtZoom: 19  // Disable clustering at maximum zoom
+        spiderfyDistanceMultiplier: 1.5
     });
     map.addLayer(markerClusterGroup);
 
@@ -180,41 +280,76 @@
     }
 
     // Handle region selection
-    document.getElementById('region').addEventListener('change', function(e) {
-        const selectedRegion = e.target.value;
-        if (selectedRegion) {
-            highlightRegion(selectedRegion);
-        } else {
-            // If no region selected, show all Russia
-            if (currentRegionHighlight) {
-                map.removeLayer(currentRegionHighlight);
+    if (document.getElementById('region')) {
+        document.getElementById('region').addEventListener('change', function(e) {
+            const selectedRegion = e.target.value;
+            if (selectedRegion) {
+                highlightRegion(selectedRegion);
+            } else {
+                // If no region selected, show all Russia
+                if (currentRegionHighlight) {
+                    map.removeLayer(currentRegionHighlight);
+                }
+                map.setView([55.7558, 37.6173], 4);
             }
-            map.setView([55.7558, 37.6173], 4);
-        }
-    });
+        });
+    }
+
+    // Mobile region selection
+    if (document.getElementById('regionMobile')) {
+        document.getElementById('regionMobile').addEventListener('change', function(e) {
+            const selectedRegion = e.target.value;
+            if (selectedRegion) {
+                highlightRegion(selectedRegion);
+            } else {
+                if (currentRegionHighlight) {
+                    map.removeLayer(currentRegionHighlight);
+                }
+                map.setView([55.7558, 37.6173], 4);
+            }
+        });
+    }
 
     // Handle form submission
-    document.getElementById('filterForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const formData = new FormData(this);
-        
-        // Get selected rooms
-        const selectedRooms = [];
-        formData.getAll('rooms').forEach(room => {
-            selectedRooms.push(parseInt(room));
+    if (document.getElementById('filterForm')) {
+        document.getElementById('filterForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const selectedRooms = [];
+            formData.getAll('rooms').forEach(room => {
+                selectedRooms.push(parseInt(room));
+            });
+            const filters = {
+                region: formData.get('region'),
+                minPrice: formData.get('minPrice'),
+                maxPrice: formData.get('maxPrice'),
+                rooms: selectedRooms
+            };
+            fetchProperties(filters);
         });
+    }
 
-        // Prepare filter data
-        const filters = {
-            region: formData.get('region'),
-            minPrice: formData.get('minPrice'),
-            maxPrice: formData.get('maxPrice'),
-            rooms: selectedRooms
-        };
-
-        // Send filters to backend
-        fetchProperties(filters);
-    });
+    // Mobile filter form
+    if (document.getElementById('filterFormMobile')) {
+        document.getElementById('filterFormMobile').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const selectedRooms = [];
+            formData.getAll('rooms').forEach(room => {
+                selectedRooms.push(parseInt(room));
+            });
+            const filters = {
+                region: formData.get('region'),
+                minPrice: formData.get('minPrice'),
+                maxPrice: formData.get('maxPrice'),
+                rooms: selectedRooms
+            };
+            fetchProperties(filters);
+            // Закрыть offcanvas после применения фильтра
+            const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('mobileFilters'));
+            offcanvas.hide();
+        });
+    }
 
     // Function to fetch properties based on filters
     function fetchProperties(filters) {
@@ -278,35 +413,74 @@
         properties.forEach(property => {
             // Форматируем цену в тысячах
             const priceInThousands = Math.round(property.price / 1000);
-            const priceLabel = property.rooms ? 
-                `${property.rooms}к ${priceInThousands} тыс` : 
-                `${priceInThousands} тыс`;
-            
+
+            // Удаляем все нецифровые символы из количества комнат
+            let roomsText = property.rooms ? String(property.rooms).replace(/[^0-9]/g, '') : '';
+            let markerText = roomsText ? `${roomsText}к | ${priceInThousands} тыс` : `${priceInThousands} тыс`;
+
+            // Исправляем площадь и адрес (если undefined, показываем 'не указано')
+            const area = (property.square !== undefined && property.square !== null && property.square !== '') ? property.square : 'не указано';
+            const address = (property.region !== undefined && property.region !== null && property.region !== '') ? property.region : 'не указано';
+
+            // Синий прямоугольник всегда виден
             const customIcon = L.divIcon({
-                className: 'custom-price-marker',
-                html: `<div class="marker-price">${priceLabel}</div>`,
+                className: 'custom-marker',
+                html: `<div class="marker-price">${markerText}</div>`,
                 iconSize: [80, 30],
                 iconAnchor: [40, 15]
             });
 
+            // Создаем маркер
             const marker = L.marker([property.latitude, property.longitude], {
-                icon: customIcon,
-                title: property.title  // Add hover tooltip
-            }).bindPopup(`
+                icon: customIcon
+            }).addTo(markerClusterGroup);
+
+            // Создаем всплывающее окно с информацией
+            const popupContent = `
                 <div class="property-popup">
-                    <h5>${property.title}</h5>
-                    <p><strong>Цена:</strong> ${formatPrice(property.price)}</p>
-                    <p><strong>Комнат:</strong> ${property.rooms}</p>
-                    <p><strong>Площадь:</strong> ${property.square} м²</p>
-                    <p><strong>Адрес:</strong> ${property.region}</p>
-                    <p class="mb-2">${property.description || ''}</p>
+                  <div class="row" style="display: flex; margin-left: 0; margin-right: 0;">
+                    <div class="col-4" style="flex:1; padding-right: 12px; border-right: 1px solid #e0e0e0;">
+                      <h3>${markerText}</h3>
+                      <p><strong>Цена:</strong> ${property.price}</p>
+                      <p><strong>Комнаты:</strong> ${roomsText ? roomsText : 'не указано'}</p>
+                      <p><strong>Площадь:</strong> ${area} м²</p>
+                      <p><strong>Адрес:</strong> <span style="word-break: break-word;">${address}</span></p>
+                      ${property.description ? `<p><strong>Описание:</strong> ${property.description.substring(0, 100)}${property.description.length > 100 ? '...' : ''}</p>` : ''}
+                      ${property.link_to_offer ? `<p><a href="${property.link_to_offer}" target="_blank" rel="noopener noreferrer">Перейти к объявлению</a></p>` : ''}
+                    </div>
+                    <div class="col-4" style="flex:1; padding: 0 12px; border-right: 1px solid #e0e0e0;">
+                      <h3>${markerText}</h3>
+                      <p><strong>Цена:</strong> ${property.price}</p>
+                      <p><strong>Комнаты:</strong> ${roomsText ? roomsText : 'не указано'}</p>
+                      <p><strong>Площадь:</strong> ${area} м²</p>
+                      <p><strong>Адрес:</strong> <span style="word-break: break-word;">${address}</span></p>
+                      ${property.description ? `<p><strong>Описание:</strong> ${property.description.substring(0, 100)}${property.description.length > 100 ? '...' : ''}</p>` : ''}
+                      ${property.link_to_offer ? `<p><a href="${property.link_to_offer}" target="_blank" rel="noopener noreferrer">Перейти к объявлению</a></p>` : ''}
+                    </div>
+                    <div class="col-4" style="flex:1; padding-left: 12px;">
+                      <h3>${markerText}</h3>
+                      <p><strong>Цена:</strong> ${property.price}</p>
+                      <p><strong>Комнаты:</strong> ${roomsText ? roomsText : 'не указано'}</p>
+                      <p><strong>Площадь:</strong> ${area} м²</p>
+                      <p><strong>Адрес:</strong> <span style="word-break: break-word;">${address}</span></p>
+                      ${property.description ? `<p><strong>Описание:</strong> ${property.description.substring(0, 100)}${property.description.length > 100 ? '...' : ''}</p>` : ''}
+                      ${property.link_to_offer ? `<p><a href="${property.link_to_offer}" target="_blank" rel="noopener noreferrer">Перейти к объявлению</a></p>` : ''}
+                    </div>
+                  </div>
                 </div>
-            `, {
-                maxWidth: 300,
-                autoPan: true
-            });
-            
-            markerClusterGroup.addLayer(marker);
+            `;
+
+            if (window.innerWidth < 992) {
+                marker.bindPopup(popupContent, {
+                    maxWidth: 900,
+                    autoPan: false
+                });
+            } else {
+                marker.bindPopup(popupContent, {
+                    maxWidth: 900,
+                    autoPan: true
+                });
+            }
         });
 
         // Adjust map bounds if there are markers
@@ -318,8 +492,14 @@
 
     // Function to update results summary
     function updateResults(summary) {
-        document.getElementById('resultsCount').textContent = `${summary.count} объектов найдено`;
-        document.getElementById('averagePrice').textContent = `Средняя цена: ${formatPrice(summary.averagePrice)}`;
+        if (document.getElementById('resultsCount'))
+            document.getElementById('resultsCount').textContent = `${summary.count} объектов найдено`;
+        if (document.getElementById('averagePrice'))
+            document.getElementById('averagePrice').textContent = `Средняя цена: ${formatPrice(summary.averagePrice)}`;
+        if (document.getElementById('resultsCountMobile'))
+            document.getElementById('resultsCountMobile').textContent = `${summary.count} объектов найдено`;
+        if (document.getElementById('averagePriceMobile'))
+            document.getElementById('averagePriceMobile').textContent = `Средняя цена: ${formatPrice(summary.averagePrice)}`;
     }
 </script>
 {% endblock %} 
